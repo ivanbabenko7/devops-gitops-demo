@@ -6,6 +6,7 @@ metadata:
     app.kubernetes.io/name: mysql-backup
     app.kubernetes.io/part-of: devops-gitops-demo
 spec:
+  suspend: true
   schedule: "*/5 * * * *"
   concurrencyPolicy: Forbid
   startingDeadlineSeconds: 180
