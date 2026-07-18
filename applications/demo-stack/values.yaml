@@ -1,0 +1,63 @@
+nameOverride: ""
+fullnameOverride: ""
+
+frontend:
+  replicaCount: 2
+
+  image:
+    repository: ivanbabenko7/devops-demo-frontend
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+
+  containerPort: 8080
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  config:
+    apiBase: /api
+
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+backend:
+  replicaCount: 2
+
+  image:
+    repository: ivanbabenko7/devops-demo-backend
+    tag: v1.0.0
+    pullPolicy: IfNotPresent
+
+  containerPort: 8080
+
+  service:
+    type: ClusterIP
+    port: 80
+
+  config:
+    dbHost: mysql
+    dbPort: "3306"
+    dbName: appdb
+    dbUser: appuser
+    existingSecret: mysql-auth
+    passwordKey: mysql-password
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 300m
+      memory: 256Mi
+
+ingress:
+  enabled: true
+  className: traefik
+  host: ""
+  annotations: {}
