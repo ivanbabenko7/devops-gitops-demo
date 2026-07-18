@@ -1,0 +1,11 @@
+repoURL: ""
+targetRevision: main
+
+destination:
+  server: https://kubernetes.default.svc
+  namespace: demo
+
+workload:
+  name: demo-stack
+  path: applications/demo-stack
+  releaseName: demo-stack
