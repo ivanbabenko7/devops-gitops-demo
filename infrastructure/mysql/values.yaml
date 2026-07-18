@@ -19,7 +19,35 @@ auth:
   usePasswordFiles: true
 
 initdbScripts:
-  01-schema.sql: |
+  01-schema.sh: |
+    #!/usr/bin/env bash
+
+    set -Eeuo pipefail
+
+    client_config="/tmp/mysql-init-client.cnf"
+    password_aux="${MYSQL_ROOT_PASSWORD:-}"
+
+    if [[ -f "${MYSQL_ROOT_PASSWORD_FILE:-}" ]]; then
+      password_aux="$(
+        cat "${MYSQL_ROOT_PASSWORD_FILE}"
+      )"
+    fi
+
+    umask 077
+
+    trap 'rm -f "${client_config}"' EXIT
+
+    cat > "${client_config}" <<EOF_CLIENT
+    [client]
+    protocol=TCP
+    host=127.0.0.1
+    port=3306
+    user=root
+    password=${password_aux}
+    EOF_CLIENT
+
+    /opt/bitnami/mysql/bin/mysql \
+      --defaults-extra-file="${client_config}" <<'EOF_SQL'
     CREATE DATABASE IF NOT EXISTS appdb;
 
     USE appdb;
@@ -30,6 +58,7 @@ initdbScripts:
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (id)
     );
+    EOF_SQL
 
 primary:
   persistence:
