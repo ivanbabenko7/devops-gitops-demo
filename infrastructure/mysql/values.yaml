@@ -1,0 +1,54 @@
+global:
+  security:
+    allowInsecureImages: true
+
+fullnameOverride: mysql
+
+architecture: standalone
+
+image:
+  registry: docker.io
+  repository: bitnamilegacy/mysql
+  tag: 9.4.0-debian-12-r1
+  pullPolicy: IfNotPresent
+
+auth:
+  existingSecret: mysql-auth
+  database: appdb
+  username: appuser
+  usePasswordFiles: true
+
+initdbScripts:
+  01-schema.sql: |
+    CREATE DATABASE IF NOT EXISTS appdb;
+
+    USE appdb;
+
+    CREATE TABLE IF NOT EXISTS visits (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      source VARCHAR(64) NOT NULL DEFAULT 'unknown',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id)
+    );
+
+primary:
+  persistence:
+    enabled: true
+    storageClass: local-path
+    accessModes:
+      - ReadWriteOnce
+    size: 2Gi
+
+  pdb:
+    create: false
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 768Mi
+
+metrics:
+  enabled: false
