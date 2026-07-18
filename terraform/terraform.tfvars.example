@@ -1,0 +1,4 @@
+git_repo_url = "https://github.com/ivanbabenko7/devops-gitops-demo.git"
+
+mysql_root_password = "REPLACE_WITH_RANDOM_ROOT_PASSWORD_AT_LEAST_16_CHARS"
+mysql_app_password  = "REPLACE_WITH_DIFFERENT_APP_PASSWORD_AT_LEAST_16_CHARS"
