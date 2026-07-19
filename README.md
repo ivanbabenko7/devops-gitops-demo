@@ -1,260 +1,104 @@
-# Local Kubernetes GitOps Demo
+# DevOps GitOps Demo
 
-A local multi-node Kubernetes environment deployed with k3d, Terraform, Argo CD and Helm.
+This repository contains a small Kubernetes environment that I built for a DevOps practical task.
 
-The project contains a frontend, a backend API, MySQL and an automated database backup CronJob.
+The project runs locally in k3d and includes:
 
-## Architecture
+- a multi-node Kubernetes cluster;
+- Argo CD installed with Terraform;
+- a custom Helm chart for the frontend and backend;
+- MySQL deployed through the Bitnami Helm chart;
+- automatic MySQL backups to a separate PVC;
+- GitOps synchronization from this repository.
 
-```text
-Windows / WSL2
-└── Docker Desktop
-    └── k3d cluster
-        ├── 1 server node
-        ├── 2 agent nodes
-        ├── Traefik
-        ├── Argo CD
-        │   ├── applications-root
-        │   │   └── demo-stack
-        │   └── infrastructure-root
-        │       ├── mysql
-        │       └── mysql-backup
-        └── demo namespace
-            ├── frontend
-            ├── backend
-            ├── MySQL
-            ├── MySQL data PVC
-            └── backup PVC
-```
+This is a local demonstration environment, not a production setup.
+
+## How it works
 
 Terraform installs Argo CD and creates two root Argo CD Applications:
 
-- `applications-root` monitors the `applications/` directory.
-- `infrastructure-root` monitors the `infrastructure/` directory.
+```text
+applications-root
+└── demo-stack
+    ├── frontend
+    └── backend
 
-The root Applications create three child Applications:
+infrastructure-root
+├── mysql
+└── mysql-backup
+```
 
-- `demo-stack`
-- `mysql`
-- `mysql-backup`
+After the initial `terraform apply`, application and infrastructure resources are managed by Argo CD.
 
 ## Repository structure
 
 ```text
 .
-├── applications
-│   ├── demo-stack
-│   ├── src
-│   │   ├── backend
-│   │   └── frontend
-│   ├── templates
-│   ├── Chart.yaml
-│   └── values.yaml
-├── cluster
+├── applications/
+│   ├── demo-stack/        # Helm chart for frontend and backend
+│   ├── src/               # Application source code
+│   └── templates/         # Argo CD child Application
+├── cluster/
 │   ├── create-cluster.sh
 │   └── delete-cluster.sh
-├── infrastructure
-│   ├── backup
-│   ├── mysql
-│   ├── templates
-│   ├── Chart.yaml
-│   └── values.yaml
-└── terraform
+├── infrastructure/
+│   ├── backup/            # Backup CronJob and PVC
+│   ├── mysql/             # Values for the Bitnami MySQL chart
+│   └── templates/         # Argo CD child Applications
+├── scripts/
+│   └── backup-inspector.yaml
+└── terraform/
     ├── applications.tf
     ├── main.tf
-    ├── outputs.tf
     ├── providers.tf
     ├── variables.tf
     └── versions.tf
 ```
 
-## Components
+## Requirements
 
-| Component | Implementation |
-|---|---|
-| Kubernetes | k3d with K3s |
-| Cluster topology | 1 server and 2 agents |
-| GitOps | Argo CD |
-| Infrastructure bootstrap | Terraform |
-| Application packaging | Helm |
-| Ingress | Traefik |
-| Database | MySQL using the Bitnami Helm chart |
-| Storage | K3s local-path provisioner |
-| Backups | Kubernetes CronJob and separate PVC |
-| Frontend image | `ivanbabenko7/devops-demo-frontend:v1.0.0` |
-| Backend image | `ivanbabenko7/devops-demo-backend:v1.0.0` |
+The following tools must be available locally:
 
-## Local environment
+- Docker;
+- k3d;
+- kubectl;
+- Helm;
+- Terraform;
+- Git;
+- jq;
+- OpenSSL.
 
-The environment was tested on Windows 11 with WSL2, Ubuntu and Docker Desktop.
+The project was tested from Ubuntu in WSL2 with Docker Desktop integration enabled.
 
-### WSL2
-
-Run PowerShell as Administrator:
-
-```powershell
-wsl --install -d Ubuntu
-wsl --set-default-version 2
-```
-
-Restart Windows when requested.
-
-Verify the installation:
-
-```powershell
-wsl --status
-wsl -l -v
-```
-
-The Ubuntu distribution must use WSL version 2.
-
-### Docker Desktop
-
-Install Docker Desktop and enable:
-
-```text
-Settings
-└── Resources
-    └── WSL Integration
-        ├── Enable integration with my default WSL distro
-        └── Ubuntu
-```
-
-The built-in Docker Desktop Kubernetes cluster is not required.
-
-Verify Docker from Ubuntu:
+Check the installed tools:
 
 ```bash
 docker version
-docker run --rm hello-world
-```
-
-Do not install a separate Docker daemon inside Ubuntu when Docker Desktop WSL integration is used.
-
-## Required tools
-
-The following versions were used:
-
-```text
-kubectl   v1.36.2
-Helm      v3.21.3
-Terraform v1.15.8
-k3d       v5.9.0
-```
-
-Install the base packages:
-
-```bash
-sudo apt update
-
-sudo apt install -y \
-  ca-certificates \
-  curl \
-  wget \
-  unzip \
-  jq \
-  git \
-  tree \
-  openssl \
-  dos2unix \
-  shellcheck \
-  python3 \
-  python3-yaml
-```
-
-Install kubectl:
-
-```bash
-KUBECTL_VERSION="v1.36.2"
-
-curl -fsSLo /tmp/kubectl \
-  "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
-
-sudo install -m 0755 \
-  /tmp/kubectl \
-  /usr/local/bin/kubectl
-
-rm -f /tmp/kubectl
-```
-
-Install Helm:
-
-```bash
-HELM_VERSION="v3.21.3"
-
-curl -fsSLo /tmp/helm.tar.gz \
-  "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
-
-tar -xzf /tmp/helm.tar.gz -C /tmp
-
-sudo install -m 0755 \
-  /tmp/linux-amd64/helm \
-  /usr/local/bin/helm
-
-rm -rf /tmp/linux-amd64 /tmp/helm.tar.gz
-```
-
-Install Terraform:
-
-```bash
-TERRAFORM_VERSION="1.15.8"
-
-curl -fsSLo /tmp/terraform.zip \
-  "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip"
-
-rm -rf /tmp/terraform-install
-mkdir -p /tmp/terraform-install
-
-unzip -q \
-  /tmp/terraform.zip \
-  -d /tmp/terraform-install
-
-sudo install -m 0755 \
-  /tmp/terraform-install/terraform \
-  /usr/local/bin/terraform
-
-rm -rf /tmp/terraform-install /tmp/terraform.zip
-```
-
-Install k3d:
-
-```bash
-curl -fsSL \
-  https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh \
-  | TAG=v5.9.0 bash
-```
-
-Verify the tools:
-
-```bash
-docker version
+k3d version
 kubectl version --client
 helm version --short
 terraform version
-k3d version
 ```
 
-## Clone the repository
+## 1. Clone the repository
 
 ```bash
 mkdir -p ~/work
 cd ~/work
 
-git clone \
-  https://github.com/ivanbabenko7/devops-gitops-demo.git
-
+git clone https://github.com/ivanbabenko7/devops-gitops-demo.git
 cd devops-gitops-demo
 ```
 
-## Create the cluster
+## 2. Create the Kubernetes cluster
 
-Make sure Docker Desktop is running.
+The script creates one server node and two agent nodes:
 
 ```bash
 ./cluster/create-cluster.sh
 ```
 
-Verify the context and nodes:
+Check the active context and nodes:
 
 ```bash
 kubectl config current-context
@@ -262,23 +106,22 @@ kubectl get nodes -o wide
 k3d cluster list
 ```
 
-Expected topology:
+There should be three ready nodes:
 
 ```text
-k3d-devops-demo-server-0    control-plane
-k3d-devops-demo-agent-0     worker
-k3d-devops-demo-agent-1     worker
+1 control-plane node
+2 worker nodes
 ```
 
-The application ingress is exposed through:
+The application ingress is exposed on:
 
 ```text
 http://localhost:8080
 ```
 
-## Configure Terraform variables
+## 3. Configure Terraform variables
 
-Create two random passwords:
+Generate separate passwords for the MySQL root user and application user:
 
 ```bash
 ROOT_PASSWORD="$(openssl rand -hex 24)"
@@ -289,16 +132,15 @@ while [[ "${ROOT_PASSWORD}" == "${APP_PASSWORD}" ]]; do
 done
 ```
 
-Create the local Terraform variables file:
+Create the local variables file:
 
 ```bash
 umask 077
 
 cat > terraform/terraform.tfvars <<TFVARS_EOF
-git_repo_url = "https://github.com/ivanbabenko7/devops-gitops-demo.git"
-
-mysql_root_password = "${ROOT_PASSWORD}"
-mysql_app_password  = "${APP_PASSWORD}"
+git_repo_url         = "https://github.com/ivanbabenko7/devops-gitops-demo.git"
+mysql_root_password  = "${ROOT_PASSWORD}"
+mysql_app_password   = "${APP_PASSWORD}"
 TFVARS_EOF
 
 chmod 600 terraform/terraform.tfvars
@@ -307,11 +149,11 @@ unset ROOT_PASSWORD
 unset APP_PASSWORD
 ```
 
-The file is excluded by `.gitignore` and must not be committed.
+The file is excluded from Git and must not be committed.
 
-## Deploy with Terraform
+## 4. Deploy Argo CD and the root Applications
 
-Initialize and validate the configuration:
+Initialize and validate Terraform:
 
 ```bash
 terraform -chdir=terraform init
@@ -325,39 +167,23 @@ Review the plan:
 terraform -chdir=terraform plan
 ```
 
-Apply the configuration:
+Apply it:
 
 ```bash
 terraform -chdir=terraform apply
 ```
 
-Confirm the apply when Terraform asks for approval.
+Terraform installs Argo CD, creates the `demo` namespace, creates the MySQL Secret and registers the two root Argo CD Applications.
 
-Terraform creates:
-
-```text
-helm_release.argocd
-kubectl_manifest.root_application["applications"]
-kubectl_manifest.root_application["infrastructure"]
-kubernetes_namespace_v1.workloads
-kubernetes_secret_v1.mysql_auth
-```
-
-Verify the Terraform state:
+Check the Terraform resources:
 
 ```bash
 terraform -chdir=terraform state list
 ```
 
-A second plan should report no changes:
+## 5. Check Argo CD
 
-```bash
-terraform -chdir=terraform plan
-```
-
-## Verify Argo CD
-
-Wait for Argo CD:
+Wait until Argo CD is ready:
 
 ```bash
 kubectl -n argocd wait \
@@ -374,23 +200,24 @@ kubectl -n argocd get applications \
   -o custom-columns='NAME:.metadata.name,SYNC:.status.sync.status,HEALTH:.status.health.status'
 ```
 
-Expected result:
+The following Applications should appear:
 
 ```text
-applications-root     Synced   Healthy
-demo-stack            Synced   Healthy
-infrastructure-root   Synced   Healthy
-mysql                 Synced   Healthy
-mysql-backup          Synced   Healthy
+applications-root
+demo-stack
+infrastructure-root
+mysql
+mysql-backup
 ```
 
-### Argo CD UI
+After synchronization, they should be `Synced` and `Healthy`.
+
+## 6. Open the Argo CD UI
 
 Start a port-forward:
 
 ```bash
-kubectl -n argocd \
-  port-forward \
+kubectl -n argocd port-forward \
   svc/argocd-server \
   8081:80
 ```
@@ -401,7 +228,7 @@ Open:
 http://localhost:8081
 ```
 
-Username:
+The username is:
 
 ```text
 admin
@@ -410,15 +237,17 @@ admin
 Get the initial password:
 
 ```bash
-kubectl -n argocd \
-  get secret argocd-initial-admin-secret \
+kubectl -n argocd get secret \
+  argocd-initial-admin-secret \
   -o jsonpath='{.data.password}' \
   | base64 -d
 
 echo
 ```
 
-## Verify application resources
+Stop the port-forward with `Ctrl+C` when it is no longer needed.
+
+## 7. Check the deployed resources
 
 ```bash
 kubectl -n demo get \
@@ -426,32 +255,16 @@ kubectl -n demo get \
   -o wide
 ```
 
-Expected running workloads:
+The namespace should contain:
 
-```text
-2 frontend pods
-2 backend pods
-1 MySQL pod
-```
+- two frontend pods;
+- two backend pods;
+- one MySQL pod;
+- a PVC for MySQL data;
+- a separate PVC for backup files;
+- the `mysql-backup` CronJob.
 
-Expected PVCs:
-
-```text
-data-mysql-0
-mysql-backups
-```
-
-Expected CronJob schedule:
-
-```bash
-kubectl -n demo get cronjob mysql-backup
-```
-
-```text
-*/5 * * * *
-```
-
-## Verify the frontend and API
+## 8. Test the frontend and backend
 
 Open the frontend:
 
@@ -459,23 +272,19 @@ Open the frontend:
 http://localhost:8080
 ```
 
-Check it from the command line:
+Check it from the terminal:
 
 ```bash
-curl -fsS \
-  http://localhost:8080 \
-  | grep '<title>'
+curl -fsS http://localhost:8080 | grep '<title>'
 ```
 
-Read the current visits:
+Read the current visit data:
 
 ```bash
-curl -fsS \
-  http://localhost:8080/api/visits \
-  | jq
+curl -fsS http://localhost:8080/api/visits | jq
 ```
 
-Create a visit:
+Create a new record:
 
 ```bash
 curl -fsS \
@@ -486,28 +295,30 @@ curl -fsS \
   | jq
 ```
 
-Check backend load balancing:
+Read the data again:
+
+```bash
+curl -fsS http://localhost:8080/api/visits | jq
+```
+
+To check that traffic reaches both backend replicas:
 
 ```bash
 for request in $(seq 1 20); do
-  curl -fsS \
-    http://localhost:8080/api/visits \
+  curl -fsS http://localhost:8080/api/visits \
     | jq -r '.servedBy'
-done \
-  | sort \
-  | uniq -c
+done | sort | uniq -c
 ```
 
-Both backend pod names should appear in the output.
+Both backend pod names should appear.
 
-## Verify data in MySQL
+## 9. Check the data in MySQL
 
 Load the root password into a temporary shell variable:
 
 ```bash
 MYSQL_ROOT_PASSWORD="$(
-  kubectl -n demo \
-    get secret mysql-auth \
+  kubectl -n demo get secret mysql-auth \
     -o jsonpath='{.data.mysql-root-password}' \
     | base64 -d
 )"
@@ -533,29 +344,34 @@ kubectl -n demo exec mysql-0 -- \
   '
 ```
 
-Clear the shell variable:
+Remove the password from the shell:
 
 ```bash
 unset MYSQL_ROOT_PASSWORD
 ```
 
-## Verify persistence
+## 10. Check MySQL persistence
 
-Read the current count:
+Save the current record count:
 
 ```bash
 COUNT_BEFORE="$(
-  curl -fsS \
-    http://localhost:8080/api/visits \
+  curl -fsS http://localhost:8080/api/visits \
     | jq -r '.count'
 )"
+
+echo "Count before restart: ${COUNT_BEFORE}"
 ```
 
-Restart the MySQL pod:
+Delete the MySQL pod:
 
 ```bash
 kubectl -n demo delete pod mysql-0
+```
 
+Wait for the replacement pod:
+
+```bash
 until kubectl -n demo get pod mysql-0 >/dev/null 2>&1; do
   sleep 2
 done
@@ -566,132 +382,87 @@ kubectl -n demo wait \
   --timeout=600s
 ```
 
+Wait until the API can reach MySQL again:
+
+```bash
+until curl -fsS http://localhost:8080/api/visits >/dev/null; do
+  echo "Waiting for the backend and MySQL..."
+  sleep 3
+done
+```
+
 Read the count again:
 
 ```bash
 COUNT_AFTER="$(
-  curl -fsS \
-    http://localhost:8080/api/visits \
+  curl -fsS http://localhost:8080/api/visits \
     | jq -r '.count'
 )"
 
-echo "Before: ${COUNT_BEFORE}"
-echo "After:  ${COUNT_AFTER}"
+echo "Count before restart: ${COUNT_BEFORE}"
+echo "Count after restart:  ${COUNT_AFTER}"
 
-test "${COUNT_BEFORE}" = "${COUNT_AFTER}" \
-  && echo "Persistence check passed" \
-  || echo "Persistence check failed"
+if [[ "${COUNT_BEFORE}" == "${COUNT_AFTER}" ]]; then
+  echo "Persistence check: PASS"
+else
+  echo "Persistence check: FAIL"
+fi
 ```
 
-## Verify scheduled backups
+## 11. Check MySQL backups
 
-List the CronJob and Jobs:
+The CronJob runs every five minutes:
 
 ```bash
-kubectl -n demo get cronjob,jobs
+kubectl -n demo get cronjob mysql-backup \
+  -o custom-columns='NAME:.metadata.name,SCHEDULE:.spec.schedule,SUSPEND:.spec.suspend,LAST:.status.lastScheduleTime'
 ```
 
-Get the latest Job created by the CronJob:
+For an immediate test, create a Job from the CronJob template:
 
 ```bash
-SCHEDULED_JOB="$(
-  kubectl -n demo get jobs -o json \
-    | jq -r '
-        [
-          .items[]
-          | select(
-              any(
-                .metadata.ownerReferences[]?;
-                .kind == "CronJob"
-                and .name == "mysql-backup"
-              )
-            )
-          | select(
-              (.metadata.name | contains("manual")) | not
-            )
-        ]
-        | sort_by(.metadata.creationTimestamp)
-        | last
-        | .metadata.name // empty
-      '
-)"
+BACKUP_JOB="mysql-backup-manual-$(date +%s)"
 
-echo "${SCHEDULED_JOB}"
+kubectl -n demo create job \
+  --from=cronjob/mysql-backup \
+  "${BACKUP_JOB}"
 ```
 
-Verify its owner and completion status:
+Wait for it to finish:
 
 ```bash
-kubectl -n demo \
-  get job "${SCHEDULED_JOB}" \
-  -o jsonpath='Job: {.metadata.name}{"\n"}Owner: {.metadata.ownerReferences[0].kind}/{.metadata.ownerReferences[0].name}{"\n"}Succeeded: {.status.succeeded}{"\n"}'
+kubectl -n demo wait \
+  --for=condition=complete \
+  "job/${BACKUP_JOB}" \
+  --timeout=300s
 ```
 
-View the backup log:
+Read its logs:
 
 ```bash
-kubectl -n demo logs \
-  "job/${SCHEDULED_JOB}"
+kubectl -n demo logs "job/${BACKUP_JOB}"
 ```
 
-Expected log entries:
+A successful run prints the path and size of the generated SQL file.
 
-```text
-mysqld is alive
-Creating backup: /backups/appdb-<timestamp>.sql
-Backup created successfully
-```
-
-## Inspect backup files
-
-The dump is created with permissions for UID and GID `1001`.
-
-Create a temporary inspector pod using the same user:
+Scheduled and manual Jobs can be listed with:
 
 ```bash
-cat <<'INSPECTOR_EOF' | kubectl -n demo apply -f -
-apiVersion: v1
-kind: Pod
-metadata:
-  name: backup-inspector
-spec:
-  automountServiceAccountToken: false
-  restartPolicy: Never
-
-  securityContext:
-    runAsNonRoot: true
-    runAsUser: 1001
-    runAsGroup: 1001
-    seccompProfile:
-      type: RuntimeDefault
-
-  containers:
-    - name: inspector
-      image: busybox:1.37
-      command:
-        - sh
-        - -c
-        - sleep 3600
-
-      securityContext:
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop:
-            - ALL
-
-      volumeMounts:
-        - name: backups
-          mountPath: /backups
-          readOnly: true
-
-  volumes:
-    - name: backups
-      persistentVolumeClaim:
-        claimName: mysql-backups
-INSPECTOR_EOF
+kubectl -n demo get jobs \
+  -l app.kubernetes.io/name=mysql-backup \
+  --sort-by=.metadata.creationTimestamp
 ```
 
-Wait for the pod:
+## 12. Inspect the backup PVC
+
+Create a temporary Pod that mounts the backup PVC as read-only:
+
+```bash
+kubectl -n demo apply \
+  -f scripts/backup-inspector.yaml
+```
+
+Wait until it is ready:
 
 ```bash
 kubectl -n demo wait \
@@ -700,7 +471,7 @@ kubectl -n demo wait \
   --timeout=180s
 ```
 
-Inspect the latest dump:
+Inspect the latest SQL dump:
 
 ```bash
 kubectl -n demo exec backup-inspector -- \
@@ -714,9 +485,14 @@ kubectl -n demo exec backup-inspector -- \
         | tail -n 1
     )"
 
+    test -n "${latest}"
+
     echo "Latest backup: ${latest}"
     ls -lh "${latest}"
     wc -c "${latest}"
+
+    echo
+    echo "Database objects found in the dump:"
 
     grep -E \
       "CREATE TABLE.*visits|INSERT INTO.*visits" \
@@ -725,15 +501,15 @@ kubectl -n demo exec backup-inspector -- \
   '
 ```
 
-Remove the temporary pod:
+Remove the temporary Pod:
 
 ```bash
 kubectl -n demo delete pod backup-inspector
 ```
 
-## GitOps self-healing check
+## 13. Optional GitOps self-healing test
 
-Change a managed Deployment manually:
+Change the frontend replica count directly in the cluster:
 
 ```bash
 kubectl -n demo scale \
@@ -741,17 +517,17 @@ kubectl -n demo scale \
   --replicas=1
 ```
 
-Argo CD should return it to the replica count defined in Git:
+Watch the Deployment:
 
 ```bash
-kubectl -n demo get deployment demo-stack-frontend -w
+kubectl -n demo get \
+  deployment/demo-stack-frontend \
+  -w
 ```
 
-The desired replica count should return to `2`.
+Argo CD should restore the replica count defined in Git.
 
 ## Cleanup
-
-Stop any running port-forward with `Ctrl+C`.
 
 Destroy the Terraform-managed resources:
 
@@ -765,7 +541,7 @@ Delete the k3d cluster:
 ./cluster/delete-cluster.sh
 ```
 
-Remove local Terraform secrets and state after the environment has been destroyed:
+Remove local Terraform secrets and state only after the environment has been destroyed:
 
 ```bash
 rm -f \
@@ -775,17 +551,12 @@ rm -f \
   terraform/*.tfplan
 ```
 
-Verify cleanup:
+## Notes and limitations
 
-```bash
-k3d cluster list
-kubectl config get-contexts
-```
-
-## Notes
-
-- MySQL data and backup files use separate PersistentVolumeClaims.
-- The MySQL password is stored in a Kubernetes Secret created by Terraform.
-- Local secret files and Terraform state are excluded from Git.
-- Application and infrastructure resources are reconciled by Argo CD.
-- Deleting the k3d cluster removes the local volumes and their data.
+- MySQL data and backup files use separate PVCs.
+- Both PVCs use the local k3d storage provisioner.
+- Deleting the k3d cluster also deletes the local data.
+- The backup PVC protects files from individual Job deletion, but it is not an off-cluster backup.
+- Terraform state contains the MySQL passwords and must be treated as sensitive.
+- The current demo uses a pinned legacy Bitnami MySQL image for compatibility with the selected chart version.
+- A production setup should use a supported image, encrypted remote Terraform state, external secret management and remote backup storage.
