@@ -31,7 +31,7 @@ backend:
 
   image:
     repository: ivanbabenko7/devops-demo-backend
-    tag: v1.0.0
+    tag: v1.0.1
     pullPolicy: IfNotPresent
 
   containerPort: 8080

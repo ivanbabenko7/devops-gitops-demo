@@ -26,27 +26,9 @@ DB_CONFIG: dict[str, Any] = {
     "autocommit": True,
 }
 
-SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS visits (
-    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-    source VARCHAR(64) NOT NULL DEFAULT 'unknown',
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id)
-)
-"""
-
 
 def get_connection():
     return mysql.connector.connect(**DB_CONFIG)
-
-
-def ensure_schema(connection) -> None:
-    cursor = connection.cursor()
-
-    try:
-        cursor.execute(SCHEMA_SQL)
-    finally:
-        cursor.close()
 
 
 def serialize_visit(row: dict[str, Any]) -> dict[str, Any]:
@@ -85,6 +67,20 @@ def read_visit_data(connection) -> tuple[int, list[dict[str, Any]]]:
         cursor.close()
 
 
+def parse_source() -> str:
+    payload = request.get_json(silent=True)
+
+    if not isinstance(payload, dict):
+        return "frontend"
+
+    source = str(payload.get("source", "frontend")).strip()
+
+    if not source:
+        return "frontend"
+
+    return source[:64]
+
+
 @app.get("/healthz")
 def healthz():
     return jsonify(
@@ -100,9 +96,12 @@ def readyz():
 
         try:
             cursor = connection.cursor()
-            cursor.execute("SELECT 1")
-            cursor.fetchone()
-            cursor.close()
+
+            try:
+                cursor.execute("SELECT 1 FROM visits LIMIT 1")
+                cursor.fetchone()
+            finally:
+                cursor.close()
         finally:
             connection.close()
 
@@ -119,23 +118,13 @@ def visits():
         connection = get_connection()
 
         try:
-            ensure_schema(connection)
-
             if request.method == "POST":
-                payload = request.get_json(silent=True) or {}
-                source = str(payload.get("source", "frontend")).strip()
-
-                if not source:
-                    source = "frontend"
-
-                source = source[:64]
-
                 cursor = connection.cursor()
 
                 try:
                     cursor.execute(
                         "INSERT INTO visits (source) VALUES (%s)",
-                        (source,),
+                        (parse_source(),),
                     )
                 finally:
                     cursor.close()
